@@ -1,0 +1,108 @@
+#!/usr/bin/env node
+
+// First configure the logger, so it does not spam the console
+const logger = require('../lib/logger')
+logger.transports.forEach((transport) => transport.level = 'warning')
+
+const models = require('../lib/models/')
+const readline = require('readline-sync')
+const minimist = require('minimist')
+
+function showUsage (tips) {
+  console.log(`${tips}
+
+Command-line utility for changing or verifying the password of users using email-signin.
+
+Usage: bin/manage_users_more [--pass password] [--new-pass new-password] (--change | --verify) user-email
+	Options:
+		--change    Change user password with specified user-email
+		--verify    Verify user password with specified user-email
+		--pass      Use password from cmdline rather than prompting
+		--new-pass  Use new-password from cmdline rather than prompting
+`)
+  process.exit(1)
+}
+
+function getPassByType (argv, argName, promptStr) {
+  // Find whether we use cmdline or prompt password
+  if (typeof argv[argName] !== 'string') {
+    return readline.question(promptStr, { hideEchoBack: true })
+  }
+  console.log('Using password from commandline...')
+  return argv[argName]
+}
+
+async function verifyUser (argv) {
+  const existing_user = await models.User.findOne({ where: { email: argv['verify'] } })
+  // Cannot verify non-existing users
+  if (!existing_user) {
+    console.log(`User with e-mail ${argv['verify']} does not exist, cannot verify`)
+    process.exit(4)
+  }
+
+  // Verify password
+  const attempt = getPassByType(argv, 'pass', 'Current password: ')
+  const verify_ok = await existing_user.verifyPassword(attempt);
+
+  if (verify_ok !== true){
+    console.log(`Bad password for user: ${argv['verify']}`)
+    process.exit(2)
+  }
+
+  console.log(`Password verified for user: ${argv['verify']}`)
+}
+
+async function changeUser (argv) {
+  const existing_user = await models.User.findOne({ where: { email: argv['change'] } })
+  // Cannot change non-existing users
+  if (!existing_user) {
+    console.log(`User with e-mail ${argv['change']} does not exist, cannot change`)
+    process.exit(4)
+  }
+
+  // Verify password
+  const attempt = getPassByType(argv, 'pass', 'Current password: ')
+  const verify_ok = await existing_user.verifyPassword(attempt);
+
+  if (verify_ok !== true){
+    console.log(`Bad password for user: ${argv['change']}`)
+    process.exit(2)
+  }
+
+  // set password and save
+  existing_user.password = getPassByType(argv, 'new-pass', 'New password: ')
+  await existing_user.save()
+
+  console.log(`Password changed for user: ${argv['change']}`)
+}
+
+const options = {
+  change: changeUser,
+  verify: verifyUser,
+}
+
+// Perform commandline-parsing and always treat 'pass' argument as string
+const argv = minimist(process.argv.slice(2), { string: ['pass'] })
+
+const keys = Object.keys(options)
+const opts = keys.filter((key) => argv[key] !== undefined)
+const action = opts[0]
+
+// Check for options missing
+if (opts.length === 0) {
+  showUsage(`You did not specify either ${keys.map((key) => `--${key}`).join(' or ')}!`)
+}
+
+// Check if both are specified
+if (opts.length > 1) {
+  showUsage(`You cannot ${action.join(' and ')} at the same time!`)
+}
+// Check if not string
+if (typeof argv[action] !== 'string') {
+  showUsage(`You must follow an email after --${action}`)
+}
+
+// Call respective processing functions
+options[action](argv).then(function () {
+  process.exit(0);
+});
