@@ -2,7 +2,7 @@
 
 Created for HedgeDoc 1.9.9, mileage may vary on other versions.
 
-Accompanies and expands on the existing CLI management in `bin/manage_users` using the same format.
+Accompanies and expands on the existing CLI management in `bin/manage_users` using the same format and styling.
 
 ## Syntax
 ```bash
@@ -11,6 +11,14 @@ manage_users_more
   --change EMAIL        # Change user password with specified user-email
   --pass PASSWORD       # Use password from cmdline rather than prompting
   --new-pass PASSWORD   # Use new-password from cmdline rather than prompting
+```
+
+## Error Codes
+```
+0 = Success
+1 = General error
+2 = Password doesn't match
+4 = Account doesn't exist
 ```
 
 ## Examples of use
